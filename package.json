@@ -17,6 +17,7 @@
   "scripts": {
     "start": "react-scripts start",
     "start-https": "HTTPS=true react-scripts start",
+    "format": "npx prettier --write \"src/**/*.{js,jsx,css,md,json}\"",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

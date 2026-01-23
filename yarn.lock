@@ -3849,7 +3849,7 @@ debug@2.6.9:
 
 "debug@github:ngokevin/debug#noTimestamp":
   version "2.2.0"
-  resolved "git+ssh://git@github.com/ngokevin/debug.git#ef5f8e66d49ce8bc64c6f282c15f8b7164409e3a"
+  resolved "git+https://github.com/ngokevin/debug.git#ef5f8e66d49ce8bc64c6f282c15f8b7164409e3a"
 
 decimal.js@^10.2.1, decimal.js@^10.4.3:
   version "10.4.3"

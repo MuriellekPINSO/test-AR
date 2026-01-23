@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import "./App.css";
 import MindARThreeViewer from "./mindar-three-viewer";
-import MarkerInfo from "./components/MarkerInfo";
 import DiagnosticPanel from "./components/DiagnosticPanel";
 import { AR_CONFIG } from "./config";
 
@@ -41,7 +40,6 @@ function App() {
       {started === "three" && (
         <div className="container">
           <MindARThreeViewer />
-          <MarkerInfo markers={AR_CONFIG.markers} />
           <DiagnosticPanel />
         </div>
       )}

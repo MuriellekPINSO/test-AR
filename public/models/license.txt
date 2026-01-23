@@ -1,0 +1,11 @@
+Model Information:
+* title:	Lowpoly Treasure-Chests
+* source:	https://sketchfab.com/3d-models/lowpoly-treasure-chests-3481f0c55f1c496e966a198817aa2708
+* author:	Momo (https://sketchfab.com/smomotempest)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Lowpoly Treasure-Chests" (https://sketchfab.com/3d-models/lowpoly-treasure-chests-3481f0c55f1c496e966a198817aa2708) by Momo (https://sketchfab.com/smomotempest) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

@@ -11,7 +11,7 @@ const MindARThreeViewer = () => {
   useEffect(() => {
     console.log("🔧 Initialisation MindAR...");
     console.log("📍 Container:", containerRef.current);
-    console.log("📁 Target file: /targets (8).mind");
+    console.log("📁 Target file: /targets8.mind");
     console.log("🎨 Model file: /models/scene.gltf");
 
     // Vérifier WebGL
@@ -30,7 +30,7 @@ const MindARThreeViewer = () => {
     try {
       const mindarThree = new MindARThree({
         container: containerRef.current,
-        imageTargetSrc: "/targets (8).mind",
+        imageTargetSrc: "/targets8.mind",
       });
 
       console.log("✅ MindARThree initialisé");

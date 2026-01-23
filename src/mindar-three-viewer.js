@@ -177,57 +177,23 @@ const MindARThreeViewer = () => {
 
         anchor.group.add(model);
 
-        // Créer une boîte colorée avec animation
-        const boxGeometry = new THREE.BoxGeometry(2, 2, 2);
-        
-        // Matériaux colorés pour chaque face
-        const colors = [
-          0xff6b6b, // rouge
-          0x4ecdc4, // turquoise
-          0xffe66d, // jaune
-          0x95e1d3, // menthe
-          0xc7ceea, // lavande
-          0xffa502  // orange
-        ];
-        
-        const materials = colors.map(color => 
-          new THREE.MeshPhongMaterial({
-            color: color,
-            emissive: color,
-            emissiveIntensity: 0.3,
-            shininess: 100,
-            wireframe: false
-          })
-        );
-        
-        const box = new THREE.Mesh(boxGeometry, materials);
-        box.position.set(0, 0, 0);
-        anchor.group.add(box);
-
-        // Animation de rotation sur tous les axes
-        const animateBox = () => {
-          box.rotation.x += 0.008;
-          box.rotation.y += 0.012;
-          box.rotation.z += 0.005;
-          
-          // Pulsation d'échelle
-          const scale = 1 + Math.sin(Date.now() * 0.003) * 0.1;
-          box.scale.set(scale, scale, scale);
-          
-          requestAnimationFrame(animateBox);
-        };
-        animateBox();
-
         // Configurer les animations GLTF
         if (gltf.animations && gltf.animations.length > 0) {
           const mixer = new THREE.AnimationMixer(model);
-          const action = mixer.clipAction(gltf.animations[0]);
-          action.play();
+          
+          // Jouer toutes les animations (ouverture, affichage trésor, fermeture)
+          gltf.animations.forEach((clip, index) => {
+            const action = mixer.clipAction(clip);
+            action.clampWhenFinished = true; // Garder la dernière frame
+            action.play();
+            console.log(`🎬 Animation ${index} (${clip.name}): ${(clip.duration).toFixed(2)}s`);
+          });
+          
           mixersRef.current.push(mixer);
-          console.log(`🎨 Animation GLTF démarrée pour marqueur ${markerIndex}`);
+          console.log(`✨ Animations du trésor démarrées pour marqueur ${markerIndex}`);
+        } else {
+          console.warn(`⚠️ Aucune animation trouvée pour marqueur ${markerIndex}`);
         }
-        
-        console.log(`✨ Boîte colorée créée pour marqueur ${markerIndex}`);
       };
 
       return () => {

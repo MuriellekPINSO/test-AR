@@ -1,39 +1,193 @@
 import React, { useEffect, useRef } from "react";
 import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-export default () => {
+const MindARThreeViewer = () => {
   const containerRef = useRef(null);
+  const mixersRef = useRef([]); // Pour gérer les animations GLTF
+  const clockRef = useRef(new THREE.Clock());
 
   useEffect(() => {
-    const mindarThree = new MindARThree({
-      container: containerRef.current,
-      imageTargetSrc:
-        "https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.0/examples/image-tracking/assets/card-example/card.mind",
-    });
-    const { renderer, scene, camera } = mindarThree;
-    const anchor = mindarThree.addAnchor(0);
-    const geometry = new THREE.PlaneGeometry(1, 0.55);
-    const material = new THREE.MeshBasicMaterial({
-      color: 0x00ffff,
-      transparent: true,
-      opacity: 0.5,
-    });
-    const plane = new THREE.Mesh(geometry, material);
-    anchor.group.add(plane);
+    console.log("🔧 Initialisation MindAR...");
+    console.log("📍 Container:", containerRef.current);
+    console.log("📁 Target file: /targets (8).mind");
+    console.log("🎨 Model file: /models/scene.gltf");
 
-    mindarThree.start();
-    renderer.setAnimationLoop(() => {
-      renderer.render(scene, camera);
-    });
+    // Vérifier WebGL
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    console.log(gl ? '✅ WebGL supporté' : '❌ WebGL NON supporté');
 
-    return () => {
-      renderer.setAnimationLoop(null);
-      mindarThree.stop();
-    };
+    // Vérifier les permissions média
+    navigator.mediaDevices.enumerateDevices()
+      .then(devices => {
+        const cameras = devices.filter(d => d.kind === 'videoinput');
+        console.log(`📹 Caméras détectées: ${cameras.length}`);
+      })
+      .catch(err => console.error("❌ Erreur énumération devices:", err));
+
+    try {
+      const mindarThree = new MindARThree({
+        container: containerRef.current,
+        imageTargetSrc: "/targets (8).mind",
+      });
+
+      console.log("✅ MindARThree initialisé");
+
+      const { renderer, scene, camera } = mindarThree;
+
+      // Créer des ancres pour 13 marqueurs (0 à 12)
+      const anchors = [];
+      for (let i = 0; i < 13; i++) {
+        anchors.push(mindarThree.addAnchor(i));
+      }
+      console.log("✅ 13 marqueurs créés (indices 0-12)");
+
+      // Charger le modèle GLTF une fois
+      let gltfModel = null;
+      
+      const loader = new GLTFLoader();
+      
+      loader.load(
+        "/models/scene.gltf",
+        (gltf) => {
+          gltfModel = gltf;
+          console.log("✅ Modèle GLTF chargé");
+          console.log(`📊 Animations trouvées: ${gltf.animations.length}`);
+        },
+        (progress) => {
+          if (progress.total > 0) {
+            const percent = (progress.loaded / progress.total) * 100;
+            console.log(`⏳ Chargement GLTF: ${percent.toFixed(0)}%`);
+          }
+        },
+        (error) => {
+          console.error("❌ Erreur chargement GLTF:", error);
+          console.error("💡 Vérifiez que tous les fichiers (scene.gltf, scene.bin, textures/) sont présents");
+        }
+      );
+
+      // État pour tracker quand chaque marqueur a été détecté
+      const detectionTimes = Array(13).fill(null);
+      const animationsStarted = Array(13).fill(false);
+      const lastVisibleState = Array(13).fill(false); // Nouveau: tracker changements d'état
+      
+      let frameCount = 0; // Compteur pour logs périodiques
+
+      mindarThree.start().then(() => {
+        console.log("✅ MindAR démarré avec succès - caméra active");
+        console.log("🔍 Scannez maintenant l'un des 3 marqueurs...");
+      }).catch((error) => {
+        console.error("❌ Erreur démarrage MindAR:", error);
+        console.error("Type d'erreur:", error.name);
+        console.error("Message:", error.message);
+        alert(`Erreur MindAR: ${error.message}\n\nVérifiez:\n- Permissions caméra\n- Fichier targets (8).mind existe\n- Utilisez HTTPS ou localhost`);
+      });
+
+      renderer.setAnimationLoop(() => {
+        frameCount++;
+        
+        // Log périodique toutes les 60 frames (~1 seconde)
+        if (frameCount % 60 === 0) {
+          const visibleMarkers = anchors.map((a, i) => a.visible ? i : -1).filter(i => i >= 0);
+          if (visibleMarkers.length > 0) {
+            console.log(`👁️ Marqueurs visibles: [${visibleMarkers.join(', ')}]`);
+          } else {
+            console.log(`🔎 Recherche de marqueurs... (frame ${frameCount})`);
+          }
+        }
+        
+        // Mettre à jour les animations GLTF
+        const delta = clockRef.current.getDelta();
+        mixersRef.current.forEach((mixer) => mixer.update(delta));
+
+        // Vérifier l'état de chaque marqueur
+        anchors.forEach((anchor, index) => {
+          const isVisible = anchor.visible;
+          
+          // Détecter changement d'état (apparition/disparition)
+          if (isVisible !== lastVisibleState[index]) {
+            if (isVisible) {
+              console.log(`🟢 MARQUEUR ${index} DÉTECTÉ !`);
+              console.log(`   → Temps avant animation: 2 secondes`);
+            } else {
+              console.log(`🔴 Marqueur ${index} perdu`);
+            }
+            lastVisibleState[index] = isVisible;
+          }
+
+          if (isVisible && !animationsStarted[index]) {
+            // Marqueur détecté pour la première fois
+            if (detectionTimes[index] === null) {
+              detectionTimes[index] = Date.now();
+              console.log(`⏱️ Chronomètre démarré pour marqueur ${index}`);
+            } else {
+              const elapsed = Date.now() - detectionTimes[index];
+              const remaining = 2000 - elapsed;
+              
+              // Log du compte à rebours toutes les 500ms
+              if (Math.floor(elapsed / 500) !== Math.floor((elapsed - 16) / 500)) {
+                console.log(`⏳ Marqueur ${index}: ${(remaining / 1000).toFixed(1)}s restantes...`);
+              }
+              
+              if (elapsed >= 2000) {
+                // 2 secondes écoulées - lancer l'animation
+                if (gltfModel && !animationsStarted[index]) {
+                  console.log(`🎬 LANCEMENT ANIMATION pour marqueur ${index} !`);
+                  addAnimatedModel(anchor, gltfModel, index);
+                  animationsStarted[index] = true;
+                } else if (!gltfModel) {
+                  console.warn(`⚠️ Modèle GLTF pas encore chargé pour marqueur ${index}`);
+                }
+              }
+            }
+          } else if (!isVisible && detectionTimes[index] !== null) {
+            // Marqueur disparu - réinitialiser
+            console.log(`🔄 Réinitialisation marqueur ${index}`);
+            detectionTimes[index] = null;
+            animationsStarted[index] = false;
+          }
+        });
+
+        renderer.render(scene, camera);
+      });
+
+      // Fonction pour ajouter le modèle animé
+      const addAnimatedModel = (anchor, gltf, markerIndex) => {
+        const model = gltf.scene.clone();
+        model.scale.set(0.5, 0.5, 0.5);
+        model.position.y = 0;
+
+        anchor.group.add(model);
+
+        // Configurer les animations GLTF
+        if (gltf.animations && gltf.animations.length > 0) {
+          const mixer = new THREE.AnimationMixer(model);
+          const action = mixer.clipAction(gltf.animations[0]);
+          action.play();
+          mixersRef.current.push(mixer);
+          console.log(`🎨 Animation GLTF démarrée pour marqueur ${markerIndex}`);
+        }
+      };
+
+      return () => {
+        renderer.setAnimationLoop(null);
+        mindarThree.stop();
+        mixersRef.current.forEach((mixer) => mixer.uncacheRoot(mixer.getRoot()));
+        mixersRef.current = [];
+      };
+    } catch (error) {
+      console.error("❌ Erreur Initialisation MindAR:", error);
+      console.error("Stack:", error.stack);
+      alert(`Erreur critique: ${error.message}\n\nVérifiez la console (F12) pour plus de détails`);
+      return () => {}; // Nettoyage vide en cas d'erreur
+    }
   }, []);
 
   return (
     <div style={{ width: "100%", height: "100%" }} ref={containerRef}></div>
   );
 };
+
+export default MindARThreeViewer;

@@ -1,7 +1,8 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "yarn build",
   "outputDirectory": "build",
   "env": {
-    "npm_config_build_from_source": "true"
+    "YARN_IGNORE_OPTIONAL": "true",
+    "npm_config_ignore_optional": "true"
   }
 }

@@ -88,6 +88,7 @@ const MindARThreeViewer = () => {
       const detectionTimes = Array(13).fill(null);
       const animationsStarted = Array(13).fill(false);
       const lastVisibleState = Array(13).fill(false); // Nouveau: tracker changements d'état
+      let modelAlreadyAdded = false; // 🎁 Garder seulement un modèle
       
       let frameCount = 0; // Compteur pour logs périodiques
 
@@ -149,9 +150,10 @@ const MindARThreeViewer = () => {
               
               if (elapsed >= 2000) {
                 // 2 secondes écoulées - lancer l'animation
-                if (gltfModel && !animationsStarted[index]) {
+                if (gltfModel && !modelAlreadyAdded) {
                   console.log(`🎬 LANCEMENT ANIMATION pour marqueur ${index} !`);
                   addAnimatedModel(anchor, gltfModel, index);
+                  modelAlreadyAdded = true; // 🎁 Un seul modèle
                   animationsStarted[index] = true;
                 } else if (!gltfModel) {
                   console.warn(`⚠️ Modèle GLTF pas encore chargé pour marqueur ${index}`);

@@ -7,7 +7,7 @@ export const AR_CONFIG = {
   targetFile: "/targets (8).mind",
 
   // Modèle GLTF à afficher
-  modelFile: "/models/scene.gltf",
+  modelFile: "/models/tresor.gltf",
 
   // Délai avant de lancer l'animation (en ms)
   animationDelay: 2000,

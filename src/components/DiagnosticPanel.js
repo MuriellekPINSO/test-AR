@@ -46,7 +46,7 @@ const DiagnosticPanel = () => {
     }
 
     try {
-      const modelResponse = await fetch("/models/scene.gltf");
+      const modelResponse = await fetch("/models/tresor.gltf");
       results.modelFile = modelResponse.ok;
     } catch {
       results.modelFile = false;
@@ -94,7 +94,7 @@ const DiagnosticPanel = () => {
         {diagnostics.targetFile ? "OK" : "NON"}
       </div>
       <div>
-        {getIcon(diagnostics.modelFile)} scene.gltf:{" "}
+        {getIcon(diagnostics.modelFile)} tresor.gltf:{" "}
         {diagnostics.modelFile ? "OK" : "NON"}
       </div>
       <hr style={{ margin: "10px 0", border: "1px solid #555" }} />

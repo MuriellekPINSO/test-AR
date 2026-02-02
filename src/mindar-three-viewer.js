@@ -12,7 +12,7 @@ const MindARThreeViewer = () => {
     console.log("🔧 Initialisation MindAR...");
     console.log("📍 Container:", containerRef.current);
     console.log("📁 Target file: /targets8.mind");
-    console.log("🎨 Model file: /models/scene.gltf");
+    console.log("🎨 Model file: /models/tresor.gltf");
 
     // Vérifier WebGL
     const canvas = document.createElement('canvas');
@@ -66,7 +66,7 @@ const MindARThreeViewer = () => {
       const loader = new GLTFLoader();
       
       loader.load(
-        "/models/scene.gltf",
+        "/models/tresor.gltf",
         (gltf) => {
           gltfModel = gltf;
           console.log("✅ Modèle GLTF chargé");
@@ -80,7 +80,7 @@ const MindARThreeViewer = () => {
         },
         (error) => {
           console.error("❌ Erreur chargement GLTF:", error);
-          console.error("💡 Vérifiez que tous les fichiers (scene.gltf, scene.bin, textures/) sont présents");
+          console.error("💡 Vérifiez que tous les fichiers (tresor.gltf, tresor.bin, textures/) sont présents");
         }
       );
 

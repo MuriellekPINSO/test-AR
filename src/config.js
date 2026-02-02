@@ -6,8 +6,8 @@ export const AR_CONFIG = {
   // Fichier compilé des marqueurs (13 images)
   targetFile: "/targets8.mind",
 
-  // Modèle 3D - Boîte au trésor interactive
-  modelFile: "TreasureBox (Interactive 3D)",
+  // Modèle GLB à afficher (boule.glb remplace le trésor)
+  modelFile: "/models/boule.glb",
 
   // Délai avant de lancer l'animation (en ms)
   animationDelay: 2000,
@@ -31,8 +31,8 @@ export const AR_CONFIG = {
 
   // Configuration du modèle GLTF
   model: {
-    scale: 0.5,
-    positionY: 0,
+    scale: 1.5,          // Augmenté de 0.5 à 1.5 pour mieux voir
+    positionY: 0.5,      // Positionnement vertical pour lever l'objet
     rotationX: 0,
     rotationY: 0,
     rotationZ: 0,

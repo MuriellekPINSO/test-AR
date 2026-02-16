@@ -4,10 +4,10 @@
 
 export const AR_CONFIG = {
   // Fichier compilé des marqueurs (13 images)
-  targetFile: "/targets (8).mind",
+  targetFile: "/targets8.mind",
 
-  // Modèle GLTF à afficher
-  modelFile: "/models/tresor.gltf",
+  // Modèle 3D - Boîte au trésor interactive
+  modelFile: "TreasureBox (Interactive 3D)",
 
   // Délai avant de lancer l'animation (en ms)
   animationDelay: 2000,

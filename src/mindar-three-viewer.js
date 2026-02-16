@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 const MindARThreeViewer = () => {
   const containerRef = useRef(null);
@@ -67,7 +66,6 @@ const MindARThreeViewer = () => {
       const detectionTimes = Array(13).fill(null);
       const animationsStarted = Array(13).fill(false);
       const lastVisibleState = Array(13).fill(false); // Nouveau: tracker changements d'état
-      let modelAlreadyAdded = false; // 🎁 Garder seulement un modèle
       
       let frameCount = 0; // Compteur pour logs périodiques
 
@@ -129,10 +127,11 @@ const MindARThreeViewer = () => {
               
               if (elapsed >= 2000) {
                 // 2 secondes écoulées - lancer l'animation
-                console.log(`🎬 LANCEMENT ANIMATION pour marqueur ${index} !`);
-                addAnimatedTestCube(anchor, index);
-                modelAlreadyAdded = true; // 🎁 Un seul modèle
-                animationsStarted[index] = true;
+                if (!animationsStarted[index]) {
+                  console.log(`🎬 LANCEMENT ANIMATION pour marqueur ${index} !`);
+                  addAnimatedTestCube(anchor, index);
+                  animationsStarted[index] = true;
+                }
               }
             }
           } else if (!isVisible && detectionTimes[index] !== null) {

@@ -13,7 +13,10 @@ const MindARThreeViewer = () => {
     console.log("🔧 Initialisation MindAR...");
     console.log("📍 Container:", containerRef.current);
     console.log("📁 Target file: /targets8.mind");
-      console.log("🎁 Modèle: Boîte au trésor interactive");
+    console.log("🎁 Modèle: Boîte au trésor interactive");
+
+    // Vérifier WebGL
+    const canvas = document.createElement('canvas');
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
     console.log(gl ? '✅ WebGL supporté' : '❌ WebGL NON supporté');
 

@@ -10,7 +10,7 @@ function App() {
   return (
     <div className="App">
       <h1>
-        🎯 AR Treasure Box Explorer{" "}
+        � Boîte au Trésor AR{" "}
         <a href="https://github.com/hiukim/mind-ar-js" target="_blank" rel="noreferrer">
           (MindAR)
         </a>
@@ -48,9 +48,11 @@ function App() {
         <div className="info-panel" style={{ padding: "20px", textAlign: "left", maxWidth: "600px", margin: "20px auto" }}>
           <h2>ℹ️ Instructions</h2>
           <ul>
-            <li>Cliquez sur "Lancer AR" pour démarrer</li>
-            <li>Pointez vers l'un des {AR_CONFIG.markers.length} marqueurs compilés</li>
-            <li>⏱️ L'animation se lance automatiquement après 2 secondes</li>
+            <li>🚀 Cliquez sur "Lancer AR" pour démarrer la caméra</li>
+            <li>🎯 Pointez vers l'un des {AR_CONFIG.markers.length} marqueurs compilés</li>
+            <li>⏱️ Attendez 2 secondes pour que la boîte au trésor apparaisse</li>
+            <li>🎁 La boîte s'ouvrira automatiquement et révélera le trésor !</li>
+            <li>✨ Pièces d'or, gemmes et particules magiques incluses</li>
             <li>📦 Modèle: <code>{AR_CONFIG.modelFile}</code></li>
             <li>🎯 Marqueurs: <code>{AR_CONFIG.targetFile}</code></li>
           </ul>

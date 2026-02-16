@@ -60,29 +60,8 @@ const MindARThreeViewer = () => {
       }
       console.log("✅ 13 marqueurs créés (indices 0-12)");
 
-      // Charger le modèle GLTF une fois
-      let gltfModel = null;
-      
-      const loader = new GLTFLoader();
-      
-      loader.load(
-        "/models/tresor.gltf",
-        (gltf) => {
-          gltfModel = gltf;
-          console.log("✅ Modèle GLTF chargé");
-          console.log(`📊 Animations trouvées: ${gltf.animations.length}`);
-        },
-        (progress) => {
-          if (progress.total > 0) {
-            const percent = (progress.loaded / progress.total) * 100;
-            console.log(`⏳ Chargement GLTF: ${percent.toFixed(0)}%`);
-          }
-        },
-        (error) => {
-          console.error("❌ Erreur chargement GLTF:", error);
-          console.error("💡 Vérifiez que tous les fichiers (tresor.gltf, tresor.bin, textures/) sont présents");
-        }
-      );
+      // 🎯 MODÈLE DE TEST - Cube animé (remplace temporairement le GLTF)
+      console.log("🧪 Création d'un cube de test pour l'animation...");
 
       // État pour tracker quand chaque marqueur a été détecté
       const detectionTimes = Array(13).fill(null);
@@ -150,14 +129,10 @@ const MindARThreeViewer = () => {
               
               if (elapsed >= 2000) {
                 // 2 secondes écoulées - lancer l'animation
-                if (gltfModel && !modelAlreadyAdded) {
-                  console.log(`🎬 LANCEMENT ANIMATION pour marqueur ${index} !`);
-                  addAnimatedModel(anchor, gltfModel, index);
-                  modelAlreadyAdded = true; // 🎁 Un seul modèle
-                  animationsStarted[index] = true;
-                } else if (!gltfModel) {
-                  console.warn(`⚠️ Modèle GLTF pas encore chargé pour marqueur ${index}`);
-                }
+                console.log(`🎬 LANCEMENT ANIMATION pour marqueur ${index} !`);
+                addAnimatedTestCube(anchor, index);
+                modelAlreadyAdded = true; // 🎁 Un seul modèle
+                animationsStarted[index] = true;
               }
             }
           } else if (!isVisible && detectionTimes[index] !== null) {
@@ -171,31 +146,80 @@ const MindARThreeViewer = () => {
         renderer.render(scene, camera);
       });
 
-      // Fonction pour ajouter le modèle animé
-      const addAnimatedModel = (anchor, gltf, markerIndex) => {
-        const model = gltf.scene.clone();
-        model.scale.set(0.5, 0.5, 0.5);
-        model.position.y = 0;
-
-        anchor.group.add(model);
-
-        // Configurer les animations GLTF
-        if (gltf.animations && gltf.animations.length > 0) {
-          const mixer = new THREE.AnimationMixer(model);
+      // 🎯 Fonction pour ajouter le cube de test animé
+      const addAnimatedTestCube = (anchor, markerIndex) => {
+        console.log(`🧪 Création du cube de test pour marqueur ${markerIndex}`);
+        
+        // Créer un groupe pour contenir plusieurs objets
+        const group = new THREE.Group();
+        
+        // 🟡 Cube principal - doré comme un trésor
+        const cubeGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+        const cubeMaterial = new THREE.MeshPhongMaterial({ 
+          color: 0xFFD700, // Or
+          shininess: 100 
+        });
+        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+        cube.position.y = 0.15; // Surélevé
+        group.add(cube);
+        
+        // 🔵 Particules autour du cube
+        const sphereGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+        const particleMaterial = new THREE.MeshBasicMaterial({ color: 0x00FFFF });
+        const particles = [];
+        
+        for (let i = 0; i < 5; i++) {
+          const particle = new THREE.Mesh(sphereGeometry, particleMaterial);
+          const angle = (i / 5) * Math.PI * 2;
+          const radius = 0.6;
+          particle.position.x = Math.cos(angle) * radius;
+          particle.position.z = Math.sin(angle) * radius;
+          particle.position.y = 0.3 + Math.sin(i) * 0.1;
+          particles.push(particle);
+          group.add(particle);
+        }
+        
+        // Ajouter le groupe à l'ancre
+        anchor.group.add(group);
+        
+        // 🎬 Animation avec requestAnimationFrame
+        let startTime = Date.now();
+        const animate = () => {
+          if (!anchor.visible) return; // Arrêter si marqueur non visible
           
-          // Jouer toutes les animations (ouverture, affichage trésor, fermeture)
-          gltf.animations.forEach((clip, index) => {
-            const action = mixer.clipAction(clip);
-            action.clampWhenFinished = true; // Garder la dernière frame
-            action.play();
-            console.log(`🎬 Animation ${index} (${clip.name}): ${(clip.duration).toFixed(2)}s`);
+          const elapsed = (Date.now() - startTime) / 1000; // temps en secondes
+          
+          // Rotation du cube principal
+          cube.rotation.x = elapsed * 0.5;
+          cube.rotation.y = elapsed * 1.2;
+          
+          // Mouvement de haut en bas
+          cube.position.y = 0.15 + Math.sin(elapsed * 3) * 0.1;
+          
+          // Animation des particules en orbite
+          particles.forEach((particle, i) => {
+            const angle = (i / 5) * Math.PI * 2 + elapsed * 2;
+            const radius = 0.6;
+            particle.position.x = Math.cos(angle) * radius;
+            particle.position.z = Math.sin(angle) * radius;
+            particle.position.y = 0.3 + Math.sin(elapsed * 4 + i) * 0.2;
+            
+            // Rotation des particules
+            particle.rotation.x = elapsed * 2;
+            particle.rotation.y = elapsed * 3;
           });
           
-          mixersRef.current.push(mixer);
-          console.log(`✨ Animations du trésor démarrées pour marqueur ${markerIndex}`);
-        } else {
-          console.warn(`⚠️ Aucune animation trouvée pour marqueur ${markerIndex}`);
-        }
+          // Continuer l'animation si le marqueur est visible
+          if (anchor.visible) {
+            requestAnimationFrame(animate);
+          }
+        };
+        
+        // Démarrer l'animation
+        requestAnimationFrame(animate);
+        
+        console.log(`✨ Animation du cube de test démarrée pour marqueur ${markerIndex}`);
+        console.log(`🎯 Effet : Cube doré en rotation avec particules en orbite`);
       };
 
       return () => {

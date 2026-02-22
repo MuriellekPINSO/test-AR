@@ -74,6 +74,26 @@ const MindARThreeViewer = () => {
             model.position.set(0, positionY, 0);
             model.rotation.set(rotationX, rotationY, rotationZ);
 
+            // Assigner un matériau visible si le modèle n'en a pas
+            const defaultMaterial = new THREE.MeshStandardMaterial({
+              color: 0xFFD700,       // Doré
+              metalness: 0.7,
+              roughness: 0.2,
+              emissive: 0xCC9900,
+              emissiveIntensity: 0.3,
+            });
+
+            model.traverse((child) => {
+              if (child.isMesh) {
+                if (!child.material || !child.material.color) {
+                  console.log(`🎨 Matériau par défaut appliqué à: ${child.name}`);
+                  child.material = defaultMaterial;
+                } else {
+                  console.log(`🎨 Mesh "${child.name}" a déjà un matériau`);
+                }
+              }
+            });
+
             // Ajouter le modèle à l'ancre du marqueur
             anchor.group.add(model);
             console.log(`🎯 Boule ajoutée au marqueur ${index} (échelle: ${scale})`);

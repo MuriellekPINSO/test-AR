@@ -31,7 +31,7 @@ export const AR_CONFIG = {
 
   // Configuration du modèle GLTF
   model: {
-    scale: 1.5,          // Augmenté de 0.5 à 1.5 pour mieux voir
+    scale: 0.5,          // Taille réduite pour s'adapter au marqueur
     positionY: -1,       // Compense le décalage Y=1 interne au GLB → boule centrée sur le marqueur
     rotationX: 0,
     rotationY: 0,

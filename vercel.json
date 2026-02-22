@@ -1,8 +1,5 @@
 {
-  "buildCommand": "yarn build",
-  "outputDirectory": "build",
-  "env": {
-    "YARN_IGNORE_OPTIONAL": "true",
-    "npm_config_ignore_optional": "true"
-  }
+  "buildCommand": "npm run build",
+  "installCommand": "npm install --legacy-peer-deps",
+  "outputDirectory": "build"
 }

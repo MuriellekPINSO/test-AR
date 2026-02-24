@@ -14,7 +14,7 @@ function App() {
   const [gamePhase, setGamePhase] = useState('idle');
   const [totalPoints, setTotalPoints] = useState(0);
   const [currentTreasure, setCurrentTreasure] = useState(null);
-  const [collectedIds, setCollectedIds] = useState([]);
+  const [, setCollectedIds] = useState([]);
 
   // ── Callbacks AR ────────────────────────────────────────────────
   const handleMarkerFound = useCallback((markerCfg) => {
@@ -38,7 +38,7 @@ function App() {
     setCurrentTreasure((prev) =>
       gamePhase === 'collected' ? prev : null
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gamePhase]);
 
   const handleTreasureAnimationEnd = useCallback(() => {
@@ -69,7 +69,7 @@ function App() {
       case 'clue-found':
         return (
           <div className="scan-prompt">
-            <p className="clue-label">🗺️ Indice trouvé !<br/>Suivez la flèche…</p>
+            <p className="clue-label">🗺️ Indice trouvé !<br />Suivez la flèche…</p>
           </div>
         );
       case 'treasure-animating':

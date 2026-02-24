@@ -1,165 +1,266 @@
 import React, { useEffect, useRef } from "react";
 import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { AR_CONFIG } from "./config";
 
-const MindARThreeViewer = () => {
+// ─── Helpers Three.js ──────────────────────────────────────────
+
+/** Crée une flèche 3D (cylindre + cône) pointant vers +X */
+function createArrowGroup() {
+  const group = new THREE.Group();
+  const red = new THREE.MeshStandardMaterial({ color: 0xff3333, metalness: 0.3, roughness: 0.4 });
+
+  // Corps de la flèche
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.32, 10), red);
+  shaft.rotation.z = Math.PI / 2;
+  shaft.position.x = 0.16;
+  group.add(shaft);
+
+  // Pointe
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.16, 10), red);
+  tip.rotation.z = -Math.PI / 2;
+  tip.position.x = 0.4;
+  group.add(tip);
+
+  // Socle
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.05, 0.03, 14),
+    new THREE.MeshStandardMaterial({ color: 0xcc0000 })
+  );
+  group.add(base);
+
+  return group;
+}
+
+/** Crée une boîte au trésor procédurale */
+function createTreasureGroup() {
+  const group = new THREE.Group();
+  const goldMat = new THREE.MeshStandardMaterial({
+    color: 0xb8860b, metalness: 0.6, roughness: 0.3,
+    emissive: 0x7a5700, emissiveIntensity: 0.2,
+  });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x5c3d00, metalness: 0.4, roughness: 0.5 });
+
+  // Base de la boîte
+  const boxBase = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.18, 0.24), goldMat);
+  boxBase.position.y = 0.09;
+  group.add(boxBase);
+
+  // Cerclages
+  [-0.1, 0, 0.1].forEach((z) => {
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.025, 0.02), darkMat);
+    band.position.set(0, 0.09, z);
+    group.add(band);
+  });
+
+  // Couvercle (pivote autour de son bord arrière)
+  const lidPivot = new THREE.Group();
+  lidPivot.position.set(0, 0.18, -0.12); // bord arrière
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.06, 0.24), goldMat);
+  lid.position.set(0, 0, 0.12); // offset pour pivoter sur le bord
+  lidPivot.add(lid);
+  group.add(lidPivot);
+
+  // Serrure
+  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.04), darkMat);
+  lock.position.set(0, 0.2, 0.13);
+  group.add(lock);
+
+  // Étincelles dorées (particules)
+  const particles = [];
+  const particleMat = new THREE.MeshBasicMaterial({
+    color: 0xffd700, transparent: true, opacity: 0,
+  });
+  for (let i = 0; i < 24; i++) {
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 6), particleMat.clone());
+    p.position.set(0, 0.18, 0);
+    p.userData.vel = new THREE.Vector3(
+      (Math.random() - 0.5) * 0.01,
+      Math.random() * 0.018 + 0.006,
+      (Math.random() - 0.5) * 0.01
+    );
+    p.userData.life = 0;
+    p.userData.maxLife = 1.5 + Math.random() * 1.5;
+    p.userData.active = false;
+    particles.push(p);
+    group.add(p);
+  }
+
+  return { group, lidPivot, particles };
+}
+
+/** Anime la flèche (easeOutExpo, rotation Y) */
+function spinArrow(arrowGroup, finalAngle, duration, onDone) {
+  const startTime = performance.now();
+  const totalAngle = Math.PI * 2 * 6 + finalAngle; // 6 tours + angle final
+  const tick = (now) => {
+    const t = Math.min((now - startTime) / duration, 1);
+    const eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t); // easeOutExpo
+    arrowGroup.rotation.y = totalAngle * eased;
+    if (t < 1) requestAnimationFrame(tick);
+    else onDone && onDone();
+  };
+  requestAnimationFrame(tick);
+}
+
+/** Anime l'ouverture du couvercle + fait apparaître les particules */
+function openTreasure(lidPivot, particles, duration, onDone) {
+  const startTime = performance.now();
+  let particlesStarted = false;
+  const tick = (now) => {
+    const t = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+    lidPivot.rotation.x = -Math.PI * 0.85 * eased; // ouvre vers l'arrière
+    if (t > 0.45 && !particlesStarted) {
+      particlesStarted = true;
+      particles.forEach((p) => { p.material.opacity = 1; p.userData.active = true; });
+    }
+    if (t < 1) requestAnimationFrame(tick);
+    else onDone && onDone();
+  };
+  requestAnimationFrame(tick);
+}
+
+/** Met à jour les particules dans la boucle de rendu */
+function updateParticles(particles, delta) {
+  particles.forEach((p) => {
+    if (!p.userData.active) return;
+    p.userData.life += delta;
+    p.position.addScaledVector(p.userData.vel, 1);
+    p.userData.vel.y -= delta * 0.01;
+    const ratio = 1 - p.userData.life / p.userData.maxLife;
+    p.material.opacity = Math.max(0, ratio * (Math.sin(p.userData.life * 12) * 0.5 + 0.5));
+    if (p.userData.life > p.userData.maxLife) {
+      p.position.set(
+        (Math.random() - 0.5) * 0.14,
+        0.18 + Math.random() * 0.06,
+        (Math.random() - 0.5) * 0.14
+      );
+      p.userData.vel.set(
+        (Math.random() - 0.5) * 0.01,
+        Math.random() * 0.018 + 0.006,
+        (Math.random() - 0.5) * 0.01
+      );
+      p.userData.life = 0;
+      p.userData.maxLife = 1.5 + Math.random() * 1.5;
+    }
+  });
+}
+
+/**
+ * MindARThreeViewer
+ * Props:
+ *   onMarkerFound(markerConfig)          – marqueur détecté
+ *   onMarkerLost(markerId)               – marqueur perdu
+ *   onTreasureAnimationEnd(markerConfig) – animation coffre terminée → bouton actif
+ */
+const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd }) => {
   const containerRef = useRef(null);
-  const mixersRef = useRef([]); // Pour gérer les animations GLTF
   const clockRef = useRef(new THREE.Clock());
 
+  // Refs stables pour les callbacks React
+  const onMarkerFoundRef = useRef(onMarkerFound);
+  const onMarkerLostRef = useRef(onMarkerLost);
+  const onTreasureAnimationEndRef = useRef(onTreasureAnimationEnd);
+  useEffect(() => { onMarkerFoundRef.current = onMarkerFound; }, [onMarkerFound]);
+  useEffect(() => { onMarkerLostRef.current = onMarkerLost; }, [onMarkerLost]);
+  useEffect(() => { onTreasureAnimationEndRef.current = onTreasureAnimationEnd; }, [onTreasureAnimationEnd]);
+
   useEffect(() => {
-    console.log("🔧 Initialisation MindAR...");
-    console.log("📍 Container:", containerRef.current);
-    console.log("📁 Target file:", AR_CONFIG.targetFile);
-    console.log("🎨 Model file:", AR_CONFIG.modelFile);
-
-    // Vérifier WebGL
-    const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-    console.log(gl ? '✅ WebGL supporté' : '❌ WebGL NON supporté');
-
+    let cleanup = () => {};
     try {
       const mindarThree = new MindARThree({
         container: containerRef.current,
         imageTargetSrc: AR_CONFIG.targetFile,
       });
 
-      console.log("✅ MindARThree initialisé");
-
       const { renderer, scene, camera } = mindarThree;
 
-      // Configurer l'éclairage
-      const ambientLight = new THREE.AmbientLight(0xffffff, 2.0);
-      scene.add(ambientLight);
+      // Éclairage
+      scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(1, 1, 1);
+      scene.add(dirLight);
 
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-      directionalLight.position.set(1, 1, 1);
-      scene.add(directionalLight);
+      // Données par marqueur (particules, etc.)
+      const markerData = {};
 
-      const pointLight = new THREE.PointLight(0xffffff, 1.0, 100);
-      pointLight.position.set(0, 5, 5);
-      scene.add(pointLight);
+      AR_CONFIG.markers.forEach((markerCfg) => {
+        const anchor = mindarThree.addAnchor(markerCfg.id);
 
-      // Créer des ancres pour les marqueurs
-      const numMarkers = AR_CONFIG.markers.length;
-      const anchors = [];
-      for (let i = 0; i < numMarkers; i++) {
-        anchors.push(mindarThree.addAnchor(i));
-      }
-      console.log(`✅ ${numMarkers} marqueurs créés (indices 0-${numMarkers - 1})`);
+        if (markerCfg.type === 'clue') {
+          // ── Marqueur indice : flèche ──────────────────────────────────
+          const arrowGroup = createArrowGroup();
+          arrowGroup.scale.setScalar(0.6);
+          arrowGroup.position.y = 0.05;
+          anchor.group.add(arrowGroup);
+          markerData[markerCfg.id] = { arrowGroup };
 
-      // Charger le modèle GLB
-      const loader = new GLTFLoader();
+          anchor.onTargetFound = () => {
+            console.log(`🗺️  Indice ${markerCfg.id} trouvé — fl\u00e8che en rotation`);
+            onMarkerFoundRef.current && onMarkerFoundRef.current(markerCfg);
+            arrowGroup.rotation.y = 0;
+            spinArrow(arrowGroup, markerCfg.finalAngle, AR_CONFIG.arrowSpinDuration);
+          };
+          anchor.onTargetLost = () => {
+            onMarkerLostRef.current && onMarkerLostRef.current(markerCfg.id);
+          };
 
-      loader.load(
-        AR_CONFIG.modelFile,
-        (gltf) => {
-          console.log("✅ Modèle GLB (boule) chargé avec succès !");
-          console.log(`📊 Animations trouvées: ${gltf.animations.length}`);
-          if (gltf.animations.length > 0) {
-            gltf.animations.forEach((clip, i) => {
-              console.log(`   🎬 Animation ${i}: "${clip.name}" (${clip.duration.toFixed(2)}s)`);
-            });
-          }
+        } else if (markerCfg.type === 'treasure') {
+          // ── Marqueur trésor : coffre ──────────────────────────────────
+          const { group, lidPivot, particles } = createTreasureGroup();
+          group.scale.setScalar(0.8);
+          anchor.group.add(group);
+          markerData[markerCfg.id] = { particles, opened: false };
 
-          // Ajouter le modèle à CHAQUE ancre/marqueur
-          anchors.forEach((anchor, index) => {
-            const model = gltf.scene.clone();
-
-            // Appliquer la configuration de taille/position
-            const { scale, positionY, rotationX, rotationY, rotationZ } = AR_CONFIG.model;
-            model.scale.set(scale, scale, scale);
-            model.position.set(0, positionY, 0);
-            model.rotation.set(rotationX, rotationY, rotationZ);
-
-            // Assigner un matériau visible si le modèle n'en a pas
-            const defaultMaterial = new THREE.MeshStandardMaterial({
-              color: 0xFFD700,       // Doré
-              metalness: 0.7,
-              roughness: 0.2,
-              emissive: 0xCC9900,
-              emissiveIntensity: 0.3,
-            });
-
-            model.traverse((child) => {
-              if (child.isMesh) {
-                if (!child.material || !child.material.color) {
-                  console.log(`🎨 Matériau par défaut appliqué à: ${child.name}`);
-                  child.material = defaultMaterial;
-                } else {
-                  console.log(`🎨 Mesh "${child.name}" a déjà un matériau`);
-                }
-              }
-            });
-
-            // Ajouter le modèle à l'ancre du marqueur
-            anchor.group.add(model);
-            console.log(`🎯 Boule ajoutée au marqueur ${index} (échelle: ${scale})`);
-
-            // Configurer les animations si le modèle en a
-            if (gltf.animations && gltf.animations.length > 0) {
-              const mixer = new THREE.AnimationMixer(model);
-              gltf.animations.forEach((clip) => {
-                const action = mixer.clipAction(clip);
-                action.play();
+          anchor.onTargetFound = () => {
+            console.log(`💰 Trésor ${markerCfg.id} trouvé — ouverture du coffre`);
+            onMarkerFoundRef.current && onMarkerFoundRef.current(markerCfg);
+            if (!markerData[markerCfg.id].opened) {
+              markerData[markerCfg.id].opened = true;
+              openTreasure(lidPivot, particles, AR_CONFIG.treasureOpenDuration, () => {
+                onTreasureAnimationEndRef.current && onTreasureAnimationEndRef.current(markerCfg);
               });
-              mixersRef.current.push(mixer);
-              console.log(`✨ Animations démarrées pour marqueur ${index}`);
             }
-          });
-
-          console.log("🎉 Boule attachée à tous les marqueurs ! Scannez une image pour la voir.");
-        },
-        (progress) => {
-          if (progress.total > 0) {
-            const percent = (progress.loaded / progress.total) * 100;
-            console.log(`⏳ Chargement boule.glb: ${percent.toFixed(0)}%`);
-          }
-        },
-        (error) => {
-          console.error("❌ Erreur chargement boule.glb:", error);
-          console.error("💡 Vérifiez que le fichier boule.glb est présent dans public/models/");
+          };
+          anchor.onTargetLost = () => {
+            onMarkerLostRef.current && onMarkerLostRef.current(markerCfg.id);
+          };
         }
-      );
+      });
 
       // Démarrer MindAR
-      mindarThree.start().then(() => {
-        console.log("✅ MindAR démarré - caméra active");
-        console.log("🔍 Scannez une image cible pour voir la boule 3D !");
-      }).catch((error) => {
-        console.error("❌ Erreur démarrage MindAR:", error);
-        alert(`Erreur MindAR: ${error.message}\n\nVérifiez:\n- Permissions caméra\n- Utilisez HTTPS ou localhost`);
+      mindarThree.start().catch((err) => {
+        console.error("❌ Erreur démarrage MindAR:", err);
+        alert(`Erreur MindAR: ${err.message}\n\nVérifiez permissions caméra et HTTPS.`);
       });
 
       // Boucle de rendu
       renderer.setAnimationLoop(() => {
-        // Mettre à jour les animations
         const delta = clockRef.current.getDelta();
-        mixersRef.current.forEach((mixer) => mixer.update(delta));
-
-        // Rendu
+        // Mettre à jour les particules de tous les trésors
+        AR_CONFIG.markers
+          .filter((m) => m.type === 'treasure')
+          .forEach((m) => {
+            if (markerData[m.id]?.particles) {
+              updateParticles(markerData[m.id].particles, delta);
+            }
+          });
         renderer.render(scene, camera);
       });
 
-      return () => {
+      cleanup = () => {
         renderer.setAnimationLoop(null);
         mindarThree.stop();
-        mixersRef.current.forEach((mixer) => mixer.uncacheRoot(mixer.getRoot()));
-        mixersRef.current = [];
       };
-    } catch (error) {
-      console.error("❌ Erreur Initialisation MindAR:", error);
-      console.error("Stack:", error.stack);
-      alert(`Erreur critique: ${error.message}\n\nVérifiez la console (F12) pour plus de détails`);
-      return () => { };
+    } catch (err) {
+      console.error("❌ Erreur Initialisation MindAR:", err);
     }
+    return () => cleanup();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <div style={{ width: "100%", height: "100%" }} ref={containerRef}></div>
-  );
+  return <div style={{ width: "100%", height: "100%" }} ref={containerRef} />;
 };
 
 export default MindARThreeViewer;

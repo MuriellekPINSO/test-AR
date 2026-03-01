@@ -168,103 +168,173 @@ const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd
 
   useEffect(() => {
     let cleanup = () => { };
-    try {
-      const mindarThree = new MindARThree({
-        container: containerRef.current,
-        imageTargetSrc: AR_CONFIG.targetFile,
-      });
+    const container = containerRef.current;
 
-      const { renderer, scene, camera } = mindarThree;
+    const init = async () => {
+      try {
+        const mindarThree = new MindARThree({
+          container,
+          imageTargetSrc: AR_CONFIG.targetFile,
+        });
 
-      // ── Rendre le fond transparent pour voir la vidéo de la caméra ──
-      renderer.setClearColor(0x000000, 0);          // fond transparent
-      renderer.domElement.style.background = 'transparent';
+        const { scene, camera } = mindarThree;
+        let renderer = mindarThree.renderer;
 
-      // Éclairage
-      scene.add(new THREE.AmbientLight(0xffffff, 2.0));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-      dirLight.position.set(1, 1, 1);
-      scene.add(dirLight);
+        // ── Forcer alpha sur le renderer ───────────────────────────────────
+        // MindAR crée le renderer en interne sans alpha → fond noir opaque.
+        // On recrée un renderer avec alpha: true et on le substitue.
+        const newRenderer = new THREE.WebGLRenderer({
+          antialias: true,
+          alpha: true,                         // ← la clé du fix
+        });
+        newRenderer.setClearColor(0x000000, 0); // fond 100% transparent
+        newRenderer.setPixelRatio(renderer.getPixelRatio());
+        newRenderer.setSize(
+          renderer.domElement.width / renderer.getPixelRatio(),
+          renderer.domElement.height / renderer.getPixelRatio()
+        );
+        newRenderer.domElement.style.position = 'absolute';
+        newRenderer.domElement.style.top = '0';
+        newRenderer.domElement.style.left = '0';
+        newRenderer.domElement.style.width = '100%';
+        newRenderer.domElement.style.height = '100%';
+        newRenderer.domElement.style.zIndex = '2';
+        newRenderer.domElement.style.background = 'transparent';
 
-      // Données par marqueur (particules, etc.)
-      const markerData = {};
-
-      AR_CONFIG.markers.forEach((markerCfg) => {
-        const anchor = mindarThree.addAnchor(markerCfg.id);
-
-        if (markerCfg.type === 'clue') {
-          // ── Marqueur indice : flèche ──────────────────────────────────
-          const arrowGroup = createArrowGroup();
-          arrowGroup.scale.setScalar(0.6);
-          arrowGroup.position.y = 0.05;
-          anchor.group.add(arrowGroup);
-          markerData[markerCfg.id] = { arrowGroup };
-
-          anchor.onTargetFound = () => {
-            console.log(`🗺️  Indice ${markerCfg.id} trouvé — fl\u00e8che en rotation`);
-            onMarkerFoundRef.current && onMarkerFoundRef.current(markerCfg);
-            arrowGroup.rotation.y = 0;
-            spinArrow(arrowGroup, markerCfg.finalAngle, AR_CONFIG.arrowSpinDuration);
-          };
-          anchor.onTargetLost = () => {
-            onMarkerLostRef.current && onMarkerLostRef.current(markerCfg.id);
-          };
-
-        } else if (markerCfg.type === 'treasure') {
-          // ── Marqueur trésor : coffre ──────────────────────────────────
-          const { group, lidPivot, particles } = createTreasureGroup();
-          group.scale.setScalar(0.8);
-          anchor.group.add(group);
-          markerData[markerCfg.id] = { particles, opened: false };
-
-          anchor.onTargetFound = () => {
-            console.log(`💰 Trésor ${markerCfg.id} trouvé — ouverture du coffre`);
-            onMarkerFoundRef.current && onMarkerFoundRef.current(markerCfg);
-            if (!markerData[markerCfg.id].opened) {
-              markerData[markerCfg.id].opened = true;
-              openTreasure(lidPivot, particles, AR_CONFIG.treasureOpenDuration, () => {
-                onTreasureAnimationEndRef.current && onTreasureAnimationEndRef.current(markerCfg);
-              });
-            }
-          };
-          anchor.onTargetLost = () => {
-            onMarkerLostRef.current && onMarkerLostRef.current(markerCfg.id);
-          };
+        // Remplacer le canvas original
+        const oldCanvas = renderer.domElement;
+        if (oldCanvas.parentNode) {
+          oldCanvas.parentNode.replaceChild(newRenderer.domElement, oldCanvas);
         }
-      });
+        renderer.dispose();
+        renderer = newRenderer;
+        // Mettre à jour la référence interne de MindAR
+        mindarThree.renderer = renderer;
 
-      // Démarrer MindAR
-      mindarThree.start().catch((err) => {
-        console.error("❌ Erreur démarrage MindAR:", err);
+        // Éclairage
+        scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(1, 1, 1);
+        scene.add(dirLight);
+
+        // Données par marqueur (particules, etc.)
+        const markerData = {};
+
+        AR_CONFIG.markers.forEach((markerCfg) => {
+          const anchor = mindarThree.addAnchor(markerCfg.id);
+
+          if (markerCfg.type === 'clue') {
+            const arrowGroup = createArrowGroup();
+            arrowGroup.scale.setScalar(0.6);
+            arrowGroup.position.y = 0.05;
+            anchor.group.add(arrowGroup);
+            markerData[markerCfg.id] = { arrowGroup };
+
+            anchor.onTargetFound = () => {
+              console.log(`🗺️  Indice ${markerCfg.id} trouvé — flèche en rotation`);
+              onMarkerFoundRef.current && onMarkerFoundRef.current(markerCfg);
+              arrowGroup.rotation.y = 0;
+              spinArrow(arrowGroup, markerCfg.finalAngle, AR_CONFIG.arrowSpinDuration);
+            };
+            anchor.onTargetLost = () => {
+              onMarkerLostRef.current && onMarkerLostRef.current(markerCfg.id);
+            };
+
+          } else if (markerCfg.type === 'treasure') {
+            const { group, lidPivot, particles } = createTreasureGroup();
+            group.scale.setScalar(0.8);
+            anchor.group.add(group);
+            markerData[markerCfg.id] = { particles, opened: false };
+
+            anchor.onTargetFound = () => {
+              console.log(`💰 Trésor ${markerCfg.id} trouvé — ouverture du coffre`);
+              onMarkerFoundRef.current && onMarkerFoundRef.current(markerCfg);
+              if (!markerData[markerCfg.id].opened) {
+                markerData[markerCfg.id].opened = true;
+                openTreasure(lidPivot, particles, AR_CONFIG.treasureOpenDuration, () => {
+                  onTreasureAnimationEndRef.current && onTreasureAnimationEndRef.current(markerCfg);
+                });
+              }
+            };
+            anchor.onTargetLost = () => {
+              onMarkerLostRef.current && onMarkerLostRef.current(markerCfg.id);
+            };
+          }
+        });
+
+        // Démarrer MindAR
+        await mindarThree.start();
+        console.log("✅ MindAR démarré avec succès");
+
+        // ── Forcer la visibilité du flux vidéo ────────────────────────────
+        // Après le start(), MindAR a créé l'élément <video> dans le container.
+        // On s'assure qu'il est bien visible en arrière-plan.
+        const videos = container.querySelectorAll('video');
+        videos.forEach((v) => {
+          v.style.position = 'absolute';
+          v.style.top = '0';
+          v.style.left = '0';
+          v.style.width = '100%';
+          v.style.height = '100%';
+          v.style.objectFit = 'cover';
+          v.style.zIndex = '0';
+          v.style.display = 'block';
+          v.setAttribute('playsinline', '');
+        });
+
+        // S'assurer que tous les canvas sauf le nôtre sont en dessous
+        const canvases = container.querySelectorAll('canvas');
+        canvases.forEach((c) => {
+          if (c !== renderer.domElement) {
+            c.style.position = 'absolute';
+            c.style.top = '0';
+            c.style.left = '0';
+            c.style.zIndex = '1';
+          }
+        });
+
+        // Boucle de rendu
+        renderer.setAnimationLoop(() => {
+          const delta = clockRef.current.getDelta();
+          AR_CONFIG.markers
+            .filter((m) => m.type === 'treasure')
+            .forEach((m) => {
+              if (markerData[m.id]?.particles) {
+                updateParticles(markerData[m.id].particles, delta);
+              }
+            });
+          renderer.render(scene, camera);
+        });
+
+        cleanup = () => {
+          renderer.setAnimationLoop(null);
+          mindarThree.stop();
+          renderer.dispose();
+        };
+
+      } catch (err) {
+        console.error("❌ Erreur MindAR:", err);
         alert(`Erreur MindAR: ${err.message}\n\nVérifiez permissions caméra et HTTPS.`);
-      });
+      }
+    };
 
-      // Boucle de rendu
-      renderer.setAnimationLoop(() => {
-        const delta = clockRef.current.getDelta();
-        // Mettre à jour les particules de tous les trésors
-        AR_CONFIG.markers
-          .filter((m) => m.type === 'treasure')
-          .forEach((m) => {
-            if (markerData[m.id]?.particles) {
-              updateParticles(markerData[m.id].particles, delta);
-            }
-          });
-        renderer.render(scene, camera);
-      });
+    init();
 
-      cleanup = () => {
-        renderer.setAnimationLoop(null);
-        mindarThree.stop();
-      };
-    } catch (err) {
-      console.error("❌ Erreur Initialisation MindAR:", err);
-    }
     return () => cleanup();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <div style={{ width: "100%", height: "100%" }} ref={containerRef} />;
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    />
+  );
 };
 
 export default MindARThreeViewer;

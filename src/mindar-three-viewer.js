@@ -167,7 +167,7 @@ const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd
   useEffect(() => { onTreasureAnimationEndRef.current = onTreasureAnimationEnd; }, [onTreasureAnimationEnd]);
 
   useEffect(() => {
-    let cleanup = () => {};
+    let cleanup = () => { };
     try {
       const mindarThree = new MindARThree({
         container: containerRef.current,
@@ -175,6 +175,10 @@ const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd
       });
 
       const { renderer, scene, camera } = mindarThree;
+
+      // ── Rendre le fond transparent pour voir la vidéo de la caméra ──
+      renderer.setClearColor(0x000000, 0);          // fond transparent
+      renderer.domElement.style.background = 'transparent';
 
       // Éclairage
       scene.add(new THREE.AmbientLight(0xffffff, 2.0));
@@ -257,7 +261,7 @@ const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd
       console.error("❌ Erreur Initialisation MindAR:", err);
     }
     return () => cleanup();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <div style={{ width: "100%", height: "100%" }} ref={containerRef} />;

@@ -28,6 +28,25 @@ body, html, #root {
   height: 100%;
 }
 
+/* ── Forcer la visibilité de la vidéo MindAR ────────────────────── */
+.ar-container video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  z-index: 0;
+}
+
+.ar-container canvas {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  background: transparent !important;
+}
+
 /* ── Badge de points ────────────────────────────────────────────── */
 .points-badge {
   position: absolute;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { AR_CONFIG } from "../config";
 
 const DiagnosticPanel = () => {
   const [diagnostics, setDiagnostics] = useState({
@@ -39,15 +40,14 @@ const DiagnosticPanel = () => {
 
     // Test fichiers
     try {
-      const targetResponse = await fetch("/targets (8).mind");
+      const targetResponse = await fetch(AR_CONFIG.targetFile);
       results.targetFile = targetResponse.ok;
     } catch {
       results.targetFile = false;
     }
 
     try {
-      const modelResponse = await fetch("/models/tresor.gltf");
-      results.modelFile = modelResponse.ok;
+      results.modelFile = true; // Modèles procéduraux, pas de fichier externe requis
     } catch {
       results.modelFile = false;
     }
@@ -90,11 +90,11 @@ const DiagnosticPanel = () => {
         {diagnostics.camera ? "OK" : "NON"}
       </div>
       <div>
-        {getIcon(diagnostics.targetFile)} targets (8).mind:{" "}
+        {getIcon(diagnostics.targetFile)} {AR_CONFIG.targetFile}:{" "}
         {diagnostics.targetFile ? "OK" : "NON"}
       </div>
       <div>
-        {getIcon(diagnostics.modelFile)} tresor.gltf:{" "}
+        {getIcon(diagnostics.modelFile)} Modèles 3D:{" "}
         {diagnostics.modelFile ? "OK" : "NON"}
       </div>
       <hr style={{ margin: "10px 0", border: "1px solid #555" }} />

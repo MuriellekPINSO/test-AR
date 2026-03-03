@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { AR_CONFIG } from "./config";
 
 // ─── Helpers Three.js ──────────────────────────────────────────
@@ -32,63 +33,6 @@ function createArrowGroup() {
   return group;
 }
 
-/** Crée une boîte au trésor procédurale */
-function createTreasureGroup() {
-  const group = new THREE.Group();
-  const goldMat = new THREE.MeshStandardMaterial({
-    color: 0xb8860b, metalness: 0.6, roughness: 0.3,
-    emissive: 0x7a5700, emissiveIntensity: 0.2,
-  });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x5c3d00, metalness: 0.4, roughness: 0.5 });
-
-  // Base de la boîte
-  const boxBase = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.18, 0.24), goldMat);
-  boxBase.position.y = 0.09;
-  group.add(boxBase);
-
-  // Cerclages
-  [-0.1, 0, 0.1].forEach((z) => {
-    const band = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.025, 0.02), darkMat);
-    band.position.set(0, 0.09, z);
-    group.add(band);
-  });
-
-  // Couvercle (pivote autour de son bord arrière)
-  const lidPivot = new THREE.Group();
-  lidPivot.position.set(0, 0.18, -0.12); // bord arrière
-  const lid = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.06, 0.24), goldMat);
-  lid.position.set(0, 0, 0.12); // offset pour pivoter sur le bord
-  lidPivot.add(lid);
-  group.add(lidPivot);
-
-  // Serrure
-  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.04), darkMat);
-  lock.position.set(0, 0.2, 0.13);
-  group.add(lock);
-
-  // Étincelles dorées (particules)
-  const particles = [];
-  const particleMat = new THREE.MeshBasicMaterial({
-    color: 0xffd700, transparent: true, opacity: 0,
-  });
-  for (let i = 0; i < 24; i++) {
-    const p = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 6), particleMat.clone());
-    p.position.set(0, 0.18, 0);
-    p.userData.vel = new THREE.Vector3(
-      (Math.random() - 0.5) * 0.01,
-      Math.random() * 0.018 + 0.006,
-      (Math.random() - 0.5) * 0.01
-    );
-    p.userData.life = 0;
-    p.userData.maxLife = 1.5 + Math.random() * 1.5;
-    p.userData.active = false;
-    particles.push(p);
-    group.add(p);
-  }
-
-  return { group, lidPivot, particles };
-}
-
 /** Anime la flèche (easeOutExpo, rotation Y) */
 function spinArrow(arrowGroup, finalAngle, duration, onDone) {
   const startTime = performance.now();
@@ -103,20 +47,100 @@ function spinArrow(arrowGroup, finalAngle, duration, onDone) {
   requestAnimationFrame(tick);
 }
 
-/** Anime l'ouverture du couvercle + fait apparaître les particules */
-function openTreasure(lidPivot, particles, duration, onDone) {
+/**
+ * Crée les particules dorées pour l'effet d'ouverture du trésor
+ */
+function createGoldParticles(count = 30) {
+  const particles = [];
+  const particleMat = new THREE.MeshBasicMaterial({
+    color: 0xffd700, transparent: true, opacity: 0,
+  });
+  for (let i = 0; i < count; i++) {
+    const p = new THREE.Mesh(
+      new THREE.SphereGeometry(0.01, 6, 6),
+      particleMat.clone()
+    );
+    p.position.set(0, 0, 0);
+    p.userData.vel = new THREE.Vector3(
+      (Math.random() - 0.5) * 0.015,
+      Math.random() * 0.025 + 0.01,
+      (Math.random() - 0.5) * 0.015
+    );
+    p.userData.life = 0;
+    p.userData.maxLife = 1.5 + Math.random() * 2;
+    p.userData.active = false;
+    particles.push(p);
+  }
+  return particles;
+}
+
+/**
+ * Crée un halo lumineux doré autour du trésor
+ */
+function createGlowRing() {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.15, 0.25, 32),
+    new THREE.MeshBasicMaterial({
+      color: 0xffd700,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+    })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.01;
+  return ring;
+}
+
+/**
+ * Anime l'apparition du trésor (scale up + rotation + glow + particules)
+ */
+function animateTreasureReveal(treasureGroup, glowRing, particles, duration, onDone) {
   const startTime = performance.now();
   let particlesStarted = false;
+
+  // Phase 1 (0-40%) : le coffre grossit en tournant
+  // Phase 2 (40-70%) : glow apparaît, particules
+  // Phase 3 (70-100%) : stabilisation
+
   const tick = (now) => {
     const t = Math.min((now - startTime) / duration, 1);
-    const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
-    lidPivot.rotation.x = -Math.PI * 0.85 * eased; // ouvre vers l'arrière
-    if (t > 0.45 && !particlesStarted) {
-      particlesStarted = true;
-      particles.forEach((p) => { p.material.opacity = 1; p.userData.active = true; });
+
+    // Scale up avec rebond
+    if (t < 0.4) {
+      const s = t / 0.4;
+      const eased = 1 - Math.pow(1 - s, 3);
+      const scale = eased * 0.55;
+      treasureGroup.scale.setScalar(scale);
+      treasureGroup.rotation.y = s * Math.PI * 2;
+    } else {
+      // Légère oscillation
+      const osc = Math.sin((t - 0.4) * 8) * 0.02 * (1 - t);
+      treasureGroup.scale.setScalar(0.55 + osc);
+      treasureGroup.rotation.y = Math.PI * 2 + (t - 0.4) * 0.3;
     }
-    if (t < 1) requestAnimationFrame(tick);
-    else onDone && onDone();
+
+    // Glow ring
+    if (t > 0.3) {
+      const gt = Math.min((t - 0.3) / 0.4, 1);
+      glowRing.material.opacity = gt * 0.5 * (1 + Math.sin(now * 0.005) * 0.3);
+      glowRing.scale.setScalar(1 + gt * 0.3 + Math.sin(now * 0.003) * 0.1);
+    }
+
+    // Particules
+    if (t > 0.35 && !particlesStarted) {
+      particlesStarted = true;
+      particles.forEach((p) => {
+        p.material.opacity = 1;
+        p.userData.active = true;
+      });
+    }
+
+    if (t < 1) {
+      requestAnimationFrame(tick);
+    } else {
+      onDone && onDone();
+    }
   };
   requestAnimationFrame(tick);
 }
@@ -127,22 +151,22 @@ function updateParticles(particles, delta) {
     if (!p.userData.active) return;
     p.userData.life += delta;
     p.position.addScaledVector(p.userData.vel, 1);
-    p.userData.vel.y -= delta * 0.01;
+    p.userData.vel.y -= delta * 0.008;
     const ratio = 1 - p.userData.life / p.userData.maxLife;
     p.material.opacity = Math.max(0, ratio * (Math.sin(p.userData.life * 12) * 0.5 + 0.5));
     if (p.userData.life > p.userData.maxLife) {
       p.position.set(
-        (Math.random() - 0.5) * 0.14,
-        0.18 + Math.random() * 0.06,
-        (Math.random() - 0.5) * 0.14
+        (Math.random() - 0.5) * 0.2,
+        Math.random() * 0.1,
+        (Math.random() - 0.5) * 0.2
       );
       p.userData.vel.set(
-        (Math.random() - 0.5) * 0.01,
-        Math.random() * 0.018 + 0.006,
-        (Math.random() - 0.5) * 0.01
+        (Math.random() - 0.5) * 0.015,
+        Math.random() * 0.025 + 0.01,
+        (Math.random() - 0.5) * 0.015
       );
       p.userData.life = 0;
-      p.userData.maxLife = 1.5 + Math.random() * 1.5;
+      p.userData.maxLife = 1.5 + Math.random() * 2;
     }
   });
 }
@@ -170,8 +194,24 @@ const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd
     let cleanup = () => { };
     const container = containerRef.current;
 
+    // Pré-charger le modèle GLB
+    const gltfLoader = new GLTFLoader();
+    let treasureModelTemplate = null;
+
     const init = async () => {
       try {
+        // ── Charger le modèle de coffre au trésor ──────────────────
+        console.log("📦 Chargement du modèle treasure_chest.glb...");
+        try {
+          const gltf = await new Promise((resolve, reject) => {
+            gltfLoader.load("/models/treasure_chest.glb", resolve, undefined, reject);
+          });
+          treasureModelTemplate = gltf.scene;
+          console.log("✅ Modèle de coffre chargé avec succès !");
+        } catch (modelErr) {
+          console.warn("⚠️ Impossible de charger treasure_chest.glb, coffre procédural utilisé:", modelErr);
+        }
+
         const mindarThree = new MindARThree({
           container,
           imageTargetSrc: AR_CONFIG.targetFile,
@@ -181,13 +221,11 @@ const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd
         let renderer = mindarThree.renderer;
 
         // ── Forcer alpha sur le renderer ───────────────────────────────────
-        // MindAR crée le renderer en interne sans alpha → fond noir opaque.
-        // On recrée un renderer avec alpha: true et on le substitue.
         const newRenderer = new THREE.WebGLRenderer({
           antialias: true,
-          alpha: true,                         // ← la clé du fix
+          alpha: true,
         });
-        newRenderer.setClearColor(0x000000, 0); // fond 100% transparent
+        newRenderer.setClearColor(0x000000, 0);
         newRenderer.setPixelRatio(renderer.getPixelRatio());
         newRenderer.setSize(
           renderer.domElement.width / renderer.getPixelRatio(),
@@ -208,7 +246,6 @@ const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd
         }
         renderer.dispose();
         renderer = newRenderer;
-        // Mettre à jour la référence interne de MindAR
         mindarThree.renderer = renderer;
 
         // Éclairage
@@ -217,13 +254,19 @@ const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd
         dirLight.position.set(1, 1, 1);
         scene.add(dirLight);
 
-        // Données par marqueur (particules, etc.)
+        // Lumière ponctuelle dorée pour les trésors
+        const goldLight = new THREE.PointLight(0xffd700, 0, 2);
+        goldLight.position.set(0, 0.3, 0);
+        scene.add(goldLight);
+
+        // Données par marqueur
         const markerData = {};
 
         AR_CONFIG.markers.forEach((markerCfg) => {
           const anchor = mindarThree.addAnchor(markerCfg.id);
 
           if (markerCfg.type === 'clue') {
+            // ── INDICE : Flèche directionnelle ─────────────────────
             const arrowGroup = createArrowGroup();
             arrowGroup.scale.setScalar(0.6);
             arrowGroup.position.y = 0.05;
@@ -241,19 +284,71 @@ const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd
             };
 
           } else if (markerCfg.type === 'treasure') {
-            const { group, lidPivot, particles } = createTreasureGroup();
-            group.scale.setScalar(0.8);
-            anchor.group.add(group);
-            markerData[markerCfg.id] = { particles, opened: false };
+            // ── TRÉSOR : Vrai modèle GLB ───────────────────────────
+            const treasureContainer = new THREE.Group();
+            treasureContainer.scale.setScalar(0); // caché au départ
+
+            // Créer les effets
+            const particles = createGoldParticles(35);
+            const glowRing = createGlowRing();
+
+            // Ajouter le modèle 3D (clone du template)
+            if (treasureModelTemplate) {
+              const model = treasureModelTemplate.clone();
+              // Ajuster la taille et position du modèle
+              // Calculer la bounding box pour centrer et redimensionner
+              const box = new THREE.Box3().setFromObject(model);
+              const size = box.getSize(new THREE.Vector3());
+              const maxDim = Math.max(size.x, size.y, size.z);
+              const targetSize = 0.5; // taille souhaitée
+              const scaleFactor = targetSize / maxDim;
+              model.scale.multiplyScalar(scaleFactor);
+
+              // Centrer le modèle
+              const center = box.getCenter(new THREE.Vector3());
+              model.position.sub(center.multiplyScalar(scaleFactor));
+              model.position.y = 0; // poser sur le sol
+
+              treasureContainer.add(model);
+              console.log(`💰 Modèle GLB attaché au trésor ${markerCfg.id}`);
+            } else {
+              // Fallback : coffre procédural
+              const fallbackGeo = new THREE.BoxGeometry(0.32, 0.18, 0.24);
+              const fallbackMat = new THREE.MeshStandardMaterial({
+                color: 0xb8860b, metalness: 0.6, roughness: 0.3,
+                emissive: 0x7a5700, emissiveIntensity: 0.2,
+              });
+              const fallback = new THREE.Mesh(fallbackGeo, fallbackMat);
+              fallback.position.y = 0.09;
+              treasureContainer.add(fallback);
+            }
+
+            // Ajouter les effets au container
+            treasureContainer.add(glowRing);
+            particles.forEach((p) => treasureContainer.add(p));
+            anchor.group.add(treasureContainer);
+
+            markerData[markerCfg.id] = {
+              treasureContainer,
+              particles,
+              glowRing,
+              revealed: false,
+            };
 
             anchor.onTargetFound = () => {
-              console.log(`💰 Trésor ${markerCfg.id} trouvé — ouverture du coffre`);
+              console.log(`💰 Trésor ${markerCfg.id} trouvé — animation du coffre`);
               onMarkerFoundRef.current && onMarkerFoundRef.current(markerCfg);
-              if (!markerData[markerCfg.id].opened) {
-                markerData[markerCfg.id].opened = true;
-                openTreasure(lidPivot, particles, AR_CONFIG.treasureOpenDuration, () => {
-                  onTreasureAnimationEndRef.current && onTreasureAnimationEndRef.current(markerCfg);
-                });
+              if (!markerData[markerCfg.id].revealed) {
+                markerData[markerCfg.id].revealed = true;
+                animateTreasureReveal(
+                  treasureContainer,
+                  glowRing,
+                  particles,
+                  AR_CONFIG.treasureOpenDuration,
+                  () => {
+                    onTreasureAnimationEndRef.current && onTreasureAnimationEndRef.current(markerCfg);
+                  }
+                );
               }
             };
             anchor.onTargetLost = () => {
@@ -267,8 +362,6 @@ const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd
         console.log("✅ MindAR démarré avec succès");
 
         // ── Forcer la visibilité du flux vidéo ────────────────────────────
-        // Après le start(), MindAR a créé l'élément <video> dans le container.
-        // On s'assure qu'il est bien visible en arrière-plan.
         const videos = container.querySelectorAll('video');
         videos.forEach((v) => {
           v.style.position = 'absolute';
@@ -296,13 +389,28 @@ const MindARThreeViewer = ({ onMarkerFound, onMarkerLost, onTreasureAnimationEnd
         // Boucle de rendu
         renderer.setAnimationLoop(() => {
           const delta = clockRef.current.getDelta();
+
+          // Mettre à jour les particules et le glow de chaque trésor
           AR_CONFIG.markers
             .filter((m) => m.type === 'treasure')
             .forEach((m) => {
-              if (markerData[m.id]?.particles) {
-                updateParticles(markerData[m.id].particles, delta);
+              const data = markerData[m.id];
+              if (data?.particles) {
+                updateParticles(data.particles, delta);
+              }
+              // Animer le glow ring en continu
+              if (data?.glowRing && data.revealed) {
+                const time = performance.now() * 0.001;
+                data.glowRing.material.opacity = 0.3 + Math.sin(time * 2) * 0.15;
+                data.glowRing.rotation.z += delta * 0.5;
+              }
+              // Légère lévitation du coffre
+              if (data?.treasureContainer && data.revealed) {
+                const time = performance.now() * 0.001;
+                data.treasureContainer.position.y = Math.sin(time * 1.5) * 0.015;
               }
             });
+
           renderer.render(scene, camera);
         });
 

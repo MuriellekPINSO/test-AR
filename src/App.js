@@ -53,9 +53,6 @@ function saveBestScore(entry) {
 // ── Compteurs depuis config ──────────────────────────────────────
 const TOTAL_CLUES = AR_CONFIG.markers.filter((m) => m.type === "clue").length;
 const TOTAL_TREASURES = AR_CONFIG.markers.filter((m) => m.type === "treasure").length;
-const MAX_POINTS = AR_CONFIG.markers
-  .filter((m) => m.type === "treasure")
-  .reduce((sum, m) => sum + m.points, 0);
 
 /**
  * Écrans du jeu :
